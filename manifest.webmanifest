@@ -1,0 +1,25 @@
+{
+  "id": "./",
+  "name": "Forge — Fitness, Nutrition & Recipes",
+  "short_name": "Forge",
+  "description": "Science-based fitness tracker: food logging, gym & home workouts, calories burned, body tracking and macro-accurate recipes.",
+  "start_url": "./?source=app",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#07080c",
+  "theme_color": "#07080c",
+  "categories": ["health", "fitness", "food", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Log food", "short_name": "Food", "url": "./?tab=food", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Start a workout", "short_name": "Workout", "url": "./?tab=train&sub=programs", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Recipes", "short_name": "Recipes", "url": "./?tab=recipes", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
