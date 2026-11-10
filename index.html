@@ -134,6 +134,15 @@ label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--mut)
 .mhero::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,16,22,1),rgba(14,16,22,0) 60%)}
 .mhero .close{position:absolute;top:12px;right:12px;z-index:2;background:rgba(7,8,12,.6);backdrop-filter:blur(8px);font-size:18px;width:36px;height:36px;border-radius:50%;color:#fff}
 .mhero h2{position:absolute;left:22px;bottom:6px;z-index:2;margin:0;font-size:28px}
+.snapbar{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 14px}
+.snapbar .btn{justify-content:center;padding:14px 8px;font-size:15px;min-width:0;white-space:nowrap}
+.snapimg{width:100%;max-height:260px;object-fit:cover;border-radius:14px;border:1px solid var(--line);display:block}
+.snapitem{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03)}
+.snapitem input[type=number]{width:78px}
+.conf{font-size:10px;padding:2px 7px;border-radius:99px;border:1px solid var(--line2);color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+.conf.high{color:var(--acc);border-color:rgba(163,230,53,.35)}.conf.low{color:#fdba74;border-color:rgba(251,146,60,.35)}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line2);border-top-color:var(--acc);animation:spin 0.8s linear infinite;margin:18px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
 .mrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
 .mrow div{background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:12px;padding:8px 2px}
 .mrow b{display:block;font:700 16px "Space Grotesk",Inter,sans-serif;font-variant-numeric:tabular-nums}.mrow span{font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
@@ -754,6 +763,7 @@ function vFood(){
   const t=dayTotals(UI.date).food;
   return dateNav()+`<div class="g2">
   <div class="card"><h3>Add food <small>${FOOD.length} verified foods + ${RECIPES.length} recipes</small></h3>
+    <div class="snapbar"><label class="btn">📷 Snap food<input type="file" accept="image/*" capture="environment" style="display:none" onchange="snapFile(this)"></label><label class="btn g">🖼️ From gallery<input type="file" accept="image/*" style="display:none" onchange="snapFile(this)"></label></div>
     <input id="fq" style="width:100%" placeholder="Search foods or recipes… (e.g. chicken, oats, chili)" value="${esc(UI.q)}" oninput="UI.q=this.value;UI._focusQ=true;render()">
     ${q?`<div class="results">${rr.map(r=>`<div class="res" onclick="pick('recipe','${r.id}')"><span class="row" style="flex-wrap:nowrap;gap:10px"><span class="thumb">${photo(r.id,r.em||'🍽️')}</span><span>${esc(r.name)} <span class="pill">recipe</span></span></span><span class="mut">${r0(recipePer(r).kcal)} kcal/serv</span></div>`).join('')}${fr.map(f=>`<div class="res" onclick="pick('food','${f.id}')"><span>${esc(f.name)} ${f.custom?'<span class="pill">custom</span>':''}</span><span class="mut">${f.k} kcal/100g</span></div>`).join('')}${!rr.length&&!fr.length?'<div class="res mut">No matches — create a custom food below.</div>':''}</div>`:
       recents.length?`<div class="tip">Recent</div><div class="row" style="margin-top:6px">${recents.map(x=>`<span class="pill chip" onclick="pick('${x.ref.split(':')[0]}','${x.ref.split(':')[1]}')">${esc(x.name)}</span>`).join('')}</div>`:''}
@@ -784,6 +794,133 @@ async function quickAdd(){ const r=await ask({title:'Quick-add calories',fields:
 function addCustomFood(){ const v=id=>+$('#'+id).value||0; const n=$('#cf_n').value.trim(); if(!n) return toast('Name required'); const sg=v('cf_sg')||100; const div=$('#cf_perserv').checked? sg/100 : 1;
   S.foods.push({id:'c_'+uid(),name:n,k:r1(v('cf_k')/div),p:r1(v('cf_p')/div),c:r1(v('cf_c')/div),f:r1(v('cf_f')/div),fib:r1(v('cf_fib')/div),sv:($('#cf_sv').value||'serving')+` (${sg} g)`,sg,cat:'Custom',custom:true}); save(); toast('Custom food saved'); render(); }
 function delCustomFood(id){ S.foods=S.foods.filter(f=>f.id!==id); save(); render(); }
+
+
+// ---------- FOOD PHOTO → MACROS (AI vision) ----------
+// Two providers: Google Gemini (free tier, default) or Anthropic Claude (paid).
+// Keys live only on this device (separate localStorage keys, never in backups/exports).
+const SNAP_PROVIDERS={
+  gemini:{name:'Google Gemini',tag:'free',store:'forge.geminiKey',model:'gemini-3.8-flash',prefix:/^(AIza[0-9A-Za-z_-]{20,}|AQ.[0-9A-Za-z_.-]{20,})$/,placeholder:'AIza… or AQ.…',
+    url:'https://aistudio.google.com/app/apikey',how:'Sign in to Google AI Studio → Get API key → Create API key.',
+    note:'Free tier: no cost, a daily request limit, and Google may use free-tier photos to improve its products.'},
+  anthropic:{name:'Anthropic Claude',tag:'paid',store:'forge.anthropicKey',model:'claude-opus-5-5',prefix:/^sk-ant-/,placeholder:'sk-ant-…',
+    url:'https://console.anthropic.com/settings/keys',how:'Create one at console.anthropic.com → API keys (needs account credit).',
+    note:'Paid: roughly 1–2 cents per photo on your Anthropic account.'}};
+const ls=(k,v)=>{ try{ if(v===undefined) return localStorage.getItem(k)||''; v?localStorage.setItem(k,v):localStorage.removeItem(k); }catch(e){ return ''; } };
+const snapProv=()=>{ const p=ls('forge.snapProvider'); return SNAP_PROVIDERS[p]?p:(ls(SNAP_PROVIDERS.anthropic.store)&&!ls(SNAP_PROVIDERS.gemini.store)?'anthropic':'gemini'); };
+const getSnapKey=(p=snapProv())=>ls(SNAP_PROVIDERS[p].store);
+const setSnapKey=(k,p=snapProv())=>ls(SNAP_PROVIDERS[p].store,k||'');
+function setSnapProv(p){ ls('forge.snapProvider',p); render(); if(SNAP) drawSnap(); }
+// Built-in scanner: Forge's own Cloudflare Worker holds the Gemini key server-side, so users never need one.
+const SNAP_WORKER='https://forge-snap.michellepantelouris.workers.dev';
+const SNAP_BUILTIN=/^https:\/\/[^/]+\.workers\.dev$/.test(SNAP_WORKER)&&!SNAP_WORKER.includes('REPLACE_ME');
+const snapReady=()=>SNAP_BUILTIN||!!getSnapKey();
+let SNAP=null; // {img, hint, status:'idle'|'busy'|'done'|'err', items:[], note, err}
+
+function snapSettingsHTML(){ if(SNAP_BUILTIN) return `<div class="card" style="margin-top:14px"><h3>📷 Food photo scanner <small>built in</small></h3><div class="row"><span class="pill on">✓ Ready — no setup needed</span></div><div class="tip">Snap a meal on the Food Log and Forge identifies each food, estimates the portion and works out calories and macros. Photos are analysed by Google Gemini and aren't stored by Forge.</div></div>`;
+  const cur=snapProv();
+  return `<div class="card" style="margin-top:14px"><h3>📷 Food photo scanner <small>${getSnapKey()?'ready':'needs a key'}</small></h3>
+  <div class="mut sm" style="margin-bottom:10px">Snap a meal on the Food Log and Forge identifies each food, estimates the portion and works out calories and macros. Choose which AI analyses your photos. Your key is stored only on this device and never included in backups.</div>
+  <div class="list" style="gap:8px">${Object.entries(SNAP_PROVIDERS).map(([id,P])=>{ const k=getSnapKey(id); return `<div class="snapitem" style="grid-template-columns:auto 1fr"><input type="radio" name="snapprov" ${id===cur?'checked':''} onchange="setSnapProv('${id}')">
+    <div><div class="n"><b>${P.name}</b> <span class="conf ${P.tag==='free'?'high':''}">${P.tag}</span></div><div class="mut sm">${P.note}</div>
+    <div class="row" style="margin-top:8px">${k?`<span class="pill on">✓ Key saved (…${esc(k.slice(-4))})</span><button class="btn g s" onclick="snapSetKey('${id}')">Change</button><button class="btn d s" onclick="setSnapKey('','${id}');render()">Remove</button>`:`<button class="btn s" onclick="snapSetKey('${id}')">Add key</button><a class="btn g s" href="${P.url}" target="_blank" rel="noopener">Get a ${P.tag==='free'?'free ':''}key ↗</a>`}</div></div></div>`; }).join('')}</div></div>`; }
+
+async function snapSetKey(p=snapProv()){ const P=SNAP_PROVIDERS[p]; const r=await ask({title:`${P.name} API key`,msg:`${P.how} Then paste it here — it stays on this device only.`,fields:[{label:'API key',type:'password',placeholder:P.placeholder}],ok:'Save'}); if(!r) return false; const k=(r[0]||'').trim(); if(!P.prefix.test(k)){ toast(`That doesn't look like a ${P.name} key`); return false; } setSnapKey(k,p); ls('forge.snapProvider',p); toast('Key saved'); render(); return true; }
+
+// Downscale to ≤1280px JPEG so uploads are small and fast.
+function snapResize(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onerror=()=>rej(new Error('Could not read the photo')); fr.onload=()=>{ const im=new Image(); im.onerror=()=>rej(new Error('That file isn\'t a photo Forge can read')); im.onload=()=>{ const M=1280, sc=Math.min(1, M/Math.max(im.width,im.height)); const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext('2d').drawImage(im,0,0,c.width,c.height); res(c.toDataURL('image/jpeg',0.85)); }; im.src=fr.result; }; fr.readAsDataURL(file); }); }
+
+async function snapFile(inp){ const f=inp.files&&inp.files[0]; inp.value=''; if(!f) return;
+  try{ const img=await snapResize(f); SNAP={img,hint:'',status:'idle',items:[],note:''}; drawSnap(); if(snapReady()) snapRun(); }
+  catch(e){ toast(e.message); } }
+
+const SNAP_SCHEMA={type:'object',additionalProperties:false,required:['is_food','items','notes'],properties:{
+  is_food:{type:'boolean'},
+  notes:{type:'string'},
+  items:{type:'array',items:{type:'object',additionalProperties:false,
+    required:['name','grams','kcal_per_100g','protein_per_100g','carbs_per_100g','fat_per_100g','fiber_per_100g','confidence'],
+    properties:{name:{type:'string'},grams:{type:'number'},kcal_per_100g:{type:'number'},protein_per_100g:{type:'number'},carbs_per_100g:{type:'number'},fat_per_100g:{type:'number'},fiber_per_100g:{type:'number'},confidence:{type:'string',enum:['high','medium','low']}}}}}};
+
+const SNAP_PROMPT=`You are a registered dietitian estimating the nutrition of a meal from a photo for a calorie-tracking app.
+List each distinct food or drink you can see as its own item (e.g. "grilled chicken breast", "white rice, cooked", "olive oil / butter used in cooking" when visibly glossy or fried).
+For each item estimate the edible portion in grams as eaten (cooked weight for cooked foods), using plate size (~26 cm dinner plate), cutlery, hands and packaging for scale.
+Give energy and macros per 100 g using USDA FoodData Central style values for that food as prepared. Include hidden calories you can reasonably infer (oil, dressing, sauce, cheese, sugar in drinks).
+Set confidence to high, medium or low for each item based on how sure you are of both identity and portion.
+If the picture is a nutrition label or packaged product, use the label's values. If there is no food in the image, set is_food to false and return no items.
+Use notes for one or two short sentences the user should know (assumptions made, what to double-check). Use plain everyday food names.`;
+
+function snapErr(status,msg,P){ msg=msg||'';
+  if(status===401||status===403||/API key not valid|invalid x-api-key|API_KEY_INVALID/i.test(msg)) return `Your ${P.name} key was rejected — check it in Profile → Food photo scanner.`;
+  if(status===429) return P.tag==='free'?'You\'ve reached the free daily limit for photo scans. Try again later or tomorrow.':'Too many requests right now — wait a moment and try again.';
+  if(/credit/i.test(msg)) return 'Your Anthropic account has no credit left. Add credit at console.anthropic.com.';
+  return msg||`The scanner returned an error (${status}).`; }
+
+async function snapCallAnthropic(key,P,b64,userText){
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2026-10-21','anthropic-beta':'server-side-fallback-2026-07-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:P.model,max_tokens:16000,fallbacks:'default',output_config:{effort:'medium',format:{type:'json_schema',schema:SNAP_SCHEMA}},system:SNAP_PROMPT,
+      messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:userText}]}]})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(snapErr(r.status,j?.error?.message,P));
+  if(j.stop_reason==='refusal') throw new Error('The scanner couldn\'t analyse this photo. Try another angle or add the food manually.');
+  return (j.content||[]).filter(x=>x.type==='text').map(x=>x.text).join(''); }
+
+async function snapCallGemini(key,P,b64,userText,withSchema=true){
+  const gen={responseMimeType:'application/json'}; if(withSchema) gen.responseJsonSchema=SNAP_SCHEMA;
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${P.model}:generateContent`,{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},
+    body:JSON.stringify({systemInstruction:{parts:[{text:SNAP_PROMPT+(withSchema?'':'\nReply with JSON only, matching exactly this JSON Schema: '+JSON.stringify(SNAP_SCHEMA))}]},
+      contents:[{role:'user',parts:[{inlineData:{mimeType:'image/jpeg',data:b64}},{text:userText}]}],generationConfig:gen})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ const m=j?.error?.message||''; if(withSchema&&r.status===400&&/schema|responseJsonSchema|Unknown name/i.test(m)) return snapCallGemini(key,P,b64,userText,false); throw new Error(snapErr(r.status,m,P)); }
+  const c=j.candidates&&j.candidates[0];
+  if(!c){ throw new Error(j.promptFeedback?.blockReason?'The scanner couldn\'t analyse this photo. Try another angle or add the food manually.':'The scanner gave no answer — please try again.'); }
+  return (c.content?.parts||[]).filter(x=>x.text&&!x.thought).map(x=>x.text).join(''); }
+
+async function snapCallWorker(b64,hint){
+  const r=await fetch(SNAP_WORKER+'/scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:b64,hint})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.message||`The scanner returned an error (${r.status}).`);
+  return JSON.stringify(j); }
+
+async function snapRun(){ if(!SNAP) return; if(!snapReady()){ if(!(await snapSetKey())) return; }
+  const cur=SNAP; if(!cur) return; cur.status='busy'; cur.err=''; drawSnap();
+  const prov=snapProv(), P=SNAP_PROVIDERS[prov], hint=(cur.hint||'').trim();
+  const userText=hint?`Extra details from the user: ${hint}`:'Estimate the nutrition of this meal.';
+  try{
+    const b64=cur.img.split(',')[1];
+    const txt=SNAP_BUILTIN?await snapCallWorker(b64,hint):await (prov==='gemini'?snapCallGemini:snapCallAnthropic)(getSnapKey(prov),P,b64,userText);
+    let out; try{ out=JSON.parse(txt.replace(/^\s*```(?:json)?|```\s*$/g,'')); }catch(e){ throw new Error('The scanner\'s answer was cut off — please try again.'); }
+    const items=Array.isArray(out.items)?out.items.filter(x=>x&&x.name&&x.grams>0):[];
+    if(out.is_food===false||!items.length){ cur.status='err'; cur.err='No food found in this photo. Try again with the meal filling more of the frame.'; if(SNAP===cur) drawSnap(); return; }
+    const n=v=>Math.max(0,+v||0);
+    cur.items=items.map(x=>({name:String(x.name),grams:Math.max(1,Math.round(x.grams)),kcal_per_100g:n(x.kcal_per_100g),protein_per_100g:n(x.protein_per_100g),carbs_per_100g:n(x.carbs_per_100g),fat_per_100g:n(x.fat_per_100g),fiber_per_100g:n(x.fiber_per_100g),confidence:['high','medium','low'].includes(x.confidence)?x.confidence:'medium',on:true}));
+    cur.note=out.notes||''; cur.status='done'; cur.by=SNAP_BUILTIN?'Google Gemini':P.name;
+  }catch(e){ cur.status='err'; cur.err=(e instanceof TypeError)?'Couldn\'t reach the scanner — check your internet connection.':e.message; }
+  if(SNAP===cur) drawSnap(); }
+
+function snapMacros(x){ const m=x.grams/100; return {kcal:x.kcal_per_100g*m,p:x.protein_per_100g*m,c:x.carbs_per_100g*m,f:x.fat_per_100g*m,fib:x.fiber_per_100g*m}; }
+function snapTotal(){ return (SNAP?.items||[]).filter(x=>x.on).map(snapMacros).reduce((a,m)=>({kcal:a.kcal+m.kcal,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f,fib:a.fib+m.fib}),{kcal:0,p:0,c:0,f:0,fib:0}); }
+
+function drawSnap(){ if(!SNAP){ closeModal(); return; } const S_=SNAP, t=snapTotal(), meal=UI.meal||guessMeal();
+  let body='';
+  if(S_.status==='busy') body=`<div class="spin"></div><div class="mut" style="text-align:center">Identifying foods and estimating portions… (usually 5–30 seconds)</div>`;
+  else if(S_.status==='err') body=`<div class="note w" style="margin-top:12px">${esc(S_.err)}</div><div class="row" style="margin-top:12px"><button class="btn" onclick="snapRun()">Try again</button></div>`;
+  else if(S_.status==='idle'){ const P=SNAP_PROVIDERS[snapProv()]; body=snapReady()?'':`<div class="note" style="margin-top:12px">To analyse photos, add a <b>${P.name}</b> API key once${P.tag==='free'?' — it\'s free, no card needed':''}. ${esc(P.how)}</div><div class="row" style="margin-top:12px"><a class="btn g" href="${P.url}" target="_blank" rel="noopener">1. Get a ${P.tag==='free'?'free ':''}key ↗</a><button class="btn" onclick="snapRun()">2. Paste key & analyse</button></div><div class="tip">Prefer ${P.tag==='free'?'Claude (paid)':'Gemini (free)'}? <a href="#" onclick="event.preventDefault();setSnapProv('${snapProv()==='gemini'?'anthropic':'gemini'}')">Switch</a></div>`; }
+  else body=`<div class="list" style="gap:8px;margin-top:12px">${S_.items.map((x,i)=>{ const m=snapMacros(x); return `<div class="snapitem"><input type="checkbox" ${x.on?'checked':''} onchange="SNAP.items[${i}].on=this.checked;drawSnap()">
+     <div><div class="n"><b>${esc(x.name)}</b> <span class="conf ${x.confidence}">${x.confidence}</span></div><div class="mut sm">${r0(m.kcal)} kcal · P ${r1(m.p)} · C ${r1(m.c)} · F ${r1(m.f)}</div></div>
+     <label class="sm" style="flex-direction:row;align-items:center;gap:6px"><input type="number" min="1" step="5" value="${x.grams}" onchange="SNAP.items[${i}].grams=Math.max(0,+this.value||0);drawSnap()"> g</label></div>`; }).join('')}</div>
+    ${S_.note?`<div class="tip">💡 ${esc(S_.note)}</div>`:''}
+    <div class="mrow" style="margin-top:14px"><div><b>${r0(t.kcal)}</b><span>kcal</span></div><div><b style="color:var(--p)">${r1(t.p)}g</b><span>protein</span></div><div><b style="color:var(--c)">${r1(t.c)}g</b><span>carbs</span></div><div><b style="color:var(--f)">${r1(t.f)}g</b><span>fat</span></div></div>
+    <div class="row" style="margin-top:14px"><label>Meal<select onchange="UI.meal=this.value">${MEALS.map(x=>`<option ${x===meal?'selected':''}>${x}</option>`).join('')}</select></label>
+    <button class="btn" style="align-self:flex-end" onclick="snapAdd()" ${S_.items.some(x=>x.on)?'':'disabled'}>Add ${r0(t.kcal)} kcal to log</button></div>
+    <div class="tip">Analysed by ${esc(S_.by||'AI')}. Portions are estimates — adjust the grams if you know better. Accuracy is typically within 15–25%, so weigh foods when precision matters.</div>`;
+  $('#modal').innerHTML=`<div class="modal"><div class="card" style="max-width:560px"><div class="row sp"><h2 style="margin:0">📷 Food scan</h2><button class="x" style="font-size:22px" onclick="SNAP=null;closeModal()">✕</button></div>
+   <img class="snapimg" style="margin-top:12px" src="${S_.img}" alt="Your meal">
+   ${S_.status!=='busy'?`<div class="row" style="margin-top:12px"><input id="snaphint" style="flex:1;min-width:180px" placeholder="Optional details, e.g. 2 eggs fried in butter, large bowl" value="${esc(S_.hint)}" oninput="SNAP.hint=this.value">${S_.status!=='idle'||snapReady()?`<button class="btn g s" onclick="snapRun()">${S_.status==='done'?'Re-analyse':'Analyse'}</button>`:''}</div>`:''}
+   ${body}</div></div>`; }
+
+function snapAdd(){ if(!SNAP) return; const meal=UI.meal||guessMeal(); const items=SNAP.items.filter(x=>x.on&&x.grams>0); if(!items.length) return toast('Nothing selected');
+  for(const x of items) day().food.push({...snapMacros(x),name:x.name,amt:`${r0(x.grams)} g · 📷 photo estimate`,meal});
+  save(); SNAP=null; closeModal(); toast(`Added ${items.length} item${items.length>1?'s':''} to ${meal}`); render(); }
 
 // ---------- TRAINING: exercise library ----------
 const MUSCLES=['Chest','Lats','Upper Back','Front Delts','Side Delts','Rear Delts','Biceps','Triceps','Forearms','Core','Lower Back','Glutes','Quads','Hamstrings','Adductors','Calves'];
@@ -1410,7 +1547,7 @@ function openRecipe(id,serv){ const r=recipeById(id); if(!r) return; serv=serv??
     <button class="btn g" style="align-self:flex-end" onclick="addShop('${id}',${serv})">🛒 Add to shopping list (${serv} serv)</button>
     ${r.custom?`<button class="btn d" style="align-self:flex-end" onclick="delRecipe('${id}')">Delete</button>`:''}
    </div></div></div>`; }
-function closeModal(){ $('#modal').innerHTML=''; }
+function closeModal(){ $('#modal').innerHTML=''; SNAP=null; }
 function logRecipe(id){ const r=recipeById(id), per=recipePer(r); const s=+$('#rl_s').value||1, meal=$('#rl_m').value, d=$('#rl_d').value||UI.date;
   day(d).food.push({kcal:per.kcal*s,p:per.p*s,c:per.c*s,f:per.f*s,fib:per.fib*s,name:r.name,amt:`${s} serving${s==1?'':'s'}`,ref:'recipe:'+id,meal}); save(); closeModal(); toast(`Logged ${r0(per.kcal*s)} kcal to ${meal}`); render(); }
 function addShop(id,serv){ const ex=S.shopping.find(s=>s.id===id); if(ex) ex.serv+=serv; else S.shopping.push({id,serv}); save(); toast('Added to shopping list'); render(); }
@@ -1491,6 +1628,7 @@ function vProfile(){
    <p class="sm">Forge is an educational tool, not medical advice. Consult a professional for medical conditions, pregnancy, or eating disorders.</p>
   </div></div>
   ${burnProfileHTML()}
+  ${snapSettingsHTML()}
   ${appStatusHTML()}
   <details class="card" style="margin-top:14px"><summary>Photo credits</summary><div class="credits">${[...new Map(Object.values(PHOTOS).map(p=>[p.u,p])).values()].map(p=>`<div><a href="${p.page}" target="_blank" rel="noopener">${esc(p.t.replace(/\.jpe?g$/i,''))}</a> — ${esc(p.by)} · ${esc(p.lic)}</div>`).join('')}</div><div class="tip">Photos from Wikimedia Commons under the licenses listed. They load from the internet; offline, emoji placeholders are shown instead.</div></details>`;
 }
