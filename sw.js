@@ -1,5 +1,5 @@
 // Forge service worker: makes the app installable and usable offline.
-const VERSION = 'forge-v2';
+const VERSION = 'forge-v3';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-192.png', './icons/maskable-512.png',
   './icons/apple-touch-icon.png', './icons/favicon-32.png'];
