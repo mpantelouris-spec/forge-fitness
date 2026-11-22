@@ -16,6 +16,7 @@ A science-based fitness tracker that runs entirely in your browser and installs 
 - Weight trend, body-fat (U.S. Navy), PRs, weekly muscle volume, calculators (1RM, plates, HR zones, pace/VDOT)
 - Exercise demo photos for 87 exercises, 54 workouts, 84 recipes, treadmill speed & incline calorie maths
 - Food photo scanner: snap a meal for an AI estimate of calories and macros
+- Home boxing workouts with illustrated how-to for every move
 - Water tracker with daily goal from your weight and exercise
 - Works offline; all data is stored only on your device (export/import backups in Profile)
 
